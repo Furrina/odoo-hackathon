@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@import "tailwindcss";
+:root {
+  --primary-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  --secondary-gradient: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  --dark-gradient: linear-gradient(to bottom, #1f2937, #111827);
+}
+
+.dark {
+  --bg-primary: #1f2937;
+  --bg-secondary: #111827;
+  --text-primary: #ffffff;
+  --text-secondary: #9ca3af;
+}
+
+@layer components {
+  .gradient-primary {
+    background: var(--primary-gradient);
+  }
+
+  .gradient-secondary {
+    background: var(--secondary-gradient);
+  }
+
+  .gradient-text {
+    background: var(--primary-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .card {
+    @apply bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6;
+  }
+
+  .input {
+    @apply w-full p-3 rounded-lg border dark:bg-gray-700 dark:border-gray-600 dark:text-white;
+  }
+
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium text-white transition-all duration-200;
+  }
+
+  .btn-primary {
+    background: var(--primary-gradient);
+  }
+
+  .btn-secondary {
+    background: var(--secondary-gradient);
+  }
+}
+
+/* Dark mode styles */
+.dark body {
+  background: var(--dark-gradient);
+  color: var(--text-primary);
+}
