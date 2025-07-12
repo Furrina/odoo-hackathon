@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { SKILL_LIST } from '../skills';
 
 const BrowseUsers = () => {
   const [users, setUsers] = useState([]);
@@ -8,10 +9,19 @@ const BrowseUsers = () => {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
+  const [availabilityFilter, setAvailabilityFilter] = useState({
+    weekdays: false,
+    weekends: false,
+    evenings: false,
+    mornings: false
+  });
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const limit = 10;
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [page]); // Re-fetch when page changes
 
   const fetchUsers = async () => {
     try {
@@ -21,13 +31,19 @@ const BrowseUsers = () => {
       
       if (searchTerm) params.append('skill', searchTerm);
       if (locationFilter) params.append('location', locationFilter);
+      Object.entries(availabilityFilter).forEach(([key, value]) => {
+        if (value) params.append('availability', key);
+      });
+      params.append('page', page);
+      params.append('limit', limit);
       
       if (params.toString()) {
         url += `?${params.toString()}`;
       }
       
       const response = await axios.get(url);
-      setUsers(response.data);
+      setUsers(response.data.users);
+      setTotal(response.data.total);
     } catch (error) {
       setError('Failed to load users');
       console.error('Error fetching users:', error);
@@ -38,12 +54,15 @@ const BrowseUsers = () => {
 
   const handleSearch = (e) => {
     e.preventDefault();
+    setPage(1); // Reset page to 1 when new search
     fetchUsers();
   };
 
   const handleClear = () => {
     setSearchTerm('');
     setLocationFilter('');
+    setAvailabilityFilter({ weekdays: false, weekends: false, evenings: false, mornings: false });
+    setPage(1); // Reset page to 1 when clear
     fetchUsers();
   };
 
@@ -61,14 +80,17 @@ const BrowseUsers = () => {
       
       <div className="card mb-20">
         <form onSubmit={handleSearch} className="flex" style={{ gap: '10px', flexWrap: 'wrap' }}>
-          <input
-            type="text"
-            placeholder="Search by skill (e.g., Photoshop, Excel)"
+          <select
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={e => setSearchTerm(e.target.value)}
             className="form-control"
             style={{ flex: '1', minWidth: '200px' }}
-          />
+          >
+            <option value="">Search by skill</option>
+            {SKILL_LIST.map(skill => (
+              <option key={skill} value={skill}>{skill}</option>
+            ))}
+          </select>
           <input
             type="text"
             placeholder="Filter by location"
@@ -77,6 +99,19 @@ const BrowseUsers = () => {
             className="form-control"
             style={{ flex: '1', minWidth: '200px' }}
           />
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <label>Availability:</label>
+            {Object.entries(availabilityFilter).map(([key, value]) => (
+              <label key={key} style={{ marginRight: '8px' }}>
+                <input
+                  type="checkbox"
+                  checked={value}
+                  onChange={e => setAvailabilityFilter(prev => ({ ...prev, [key]: e.target.checked }))}
+                />
+                {key.charAt(0).toUpperCase() + key.slice(1)}
+              </label>
+            ))}
+          </div>
           <button type="submit" className="btn btn-primary">
             Search
           </button>
@@ -123,13 +158,20 @@ const BrowseUsers = () => {
                 <h3>{user.name}</h3>
                 {user.location && <p style={{ color: '#666', marginBottom: '10px' }}>{user.location}</p>}
                 
-                {user.rating > 0 && (
+                {user.totalRatings === 0 ? (
+                  <div className="rating mb-20">
+                    {'★'.repeat(4)}{'☆'}
+                    <span style={{ color: '#666', marginLeft: '5px' }}>(3.5)</span>
+                  </div>
+                ) : user.rating > 0 ? (
                   <div className="rating mb-20">
                     {'★'.repeat(Math.round(user.rating))}
                     {'☆'.repeat(5 - Math.round(user.rating))}
-                    <span style={{ color: '#666', marginLeft: '5px' }}>
-                      ({user.rating.toFixed(1)})
-                    </span>
+                    <span style={{ color: '#666', marginLeft: '5px' }}>({user.rating.toFixed(1)})</span>
+                  </div>
+                ) : (
+                  <div className="mb-20" style={{ color: '#999', fontSize: '14px' }}>
+                    Unrated
                   </div>
                 )}
               </div>
@@ -161,6 +203,13 @@ const BrowseUsers = () => {
           ))}
         </div>
       )}
+
+      {/* Add pagination controls below the user grid: */}
+      <div className="pagination-controls">
+        <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>Prev</button>
+        <span>Page {page} of {Math.ceil(total / limit)}</span>
+        <button onClick={() => setPage(p => (p * limit < total ? p + 1 : p))} disabled={page * limit >= total}>Next</button>
+      </div>
     </div>
   );
 };

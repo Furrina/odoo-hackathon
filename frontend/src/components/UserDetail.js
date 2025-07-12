@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
+import { SKILL_LIST } from '../skills';
 
 const UserDetail = () => {
   const { id } = useParams();
@@ -61,6 +62,11 @@ const UserDetail = () => {
   const getSkillIntersections = () => {
     if (!currentUser || !user) return { offered: [], requested: [] };
 
+    console.log('Current user skills offered:', currentUser.skillsOffered);
+    console.log('Current user skills wanted:', currentUser.skillsWanted);
+    console.log('Other user skills offered:', user.skillsOffered);
+    console.log('Other user skills wanted:', user.skillsWanted);
+
     // Skills I can offer that they want
     const offeredIntersection = currentUser.skillsOffered?.filter(skill => 
       user.skillsWanted?.includes(skill)
@@ -71,10 +77,14 @@ const UserDetail = () => {
       user.skillsOffered?.includes(skill)
     ) || [];
 
+    console.log('Offered intersection:', offeredIntersection);
+    console.log('Requested intersection:', requestedIntersection);
+
     return { offered: offeredIntersection, requested: requestedIntersection };
   };
 
   const skillIntersections = getSkillIntersections();
+  console.log('Final skill intersections:', skillIntersections);
 
   if (loading) {
     return <div className="loading">Loading user profile...</div>;
@@ -112,7 +122,12 @@ const UserDetail = () => {
         
         <h2>{user.name}</h2>
         {user.location && <p>{user.location}</p>}
-        {user.rating > 0 ? (
+        {(user.totalRatings || 0) === 0 ? (
+          <div className="rating">
+            {'★'.repeat(4)}{'☆'}
+            <span style={{ color: '#666', marginLeft: '5px' }}>(3.5)</span>
+          </div>
+        ) : user.rating > 0 ? (
           <div className="rating">
             {'★'.repeat(Math.round(user.rating))}
             {'☆'.repeat(5 - Math.round(user.rating))}
@@ -160,6 +175,12 @@ const UserDetail = () => {
           
           {!showRequestForm ? (
             <div>
+              <div style={{ marginBottom: '10px', fontSize: '14px', color: '#666' }}>
+                <p>Debug Info:</p>
+                <p>Skills you can offer that they want: {skillIntersections.offered.join(', ') || 'None'}</p>
+                <p>Skills you want that they can offer: {skillIntersections.requested.join(', ') || 'None'}</p>
+              </div>
+              
               {skillIntersections.offered.length > 0 && skillIntersections.requested.length > 0 ? (
                 <button 
                   onClick={() => setShowRequestForm(true)} 
@@ -190,7 +211,7 @@ const UserDetail = () => {
                   name="skillOffered"
                   className="form-control"
                   value={requestForm.skillOffered}
-                  onChange={(e) => setRequestForm(prev => ({ ...prev, skillOffered: e.target.value }))}
+                  onChange={e => setRequestForm(prev => ({ ...prev, skillOffered: e.target.value }))}
                   required
                 >
                   <option value="">Select a skill you can offer</option>
@@ -207,7 +228,7 @@ const UserDetail = () => {
                   name="skillRequested"
                   className="form-control"
                   value={requestForm.skillRequested}
-                  onChange={(e) => setRequestForm(prev => ({ ...prev, skillRequested: e.target.value }))}
+                  onChange={e => setRequestForm(prev => ({ ...prev, skillRequested: e.target.value }))}
                   required
                 >
                   <option value="">Select a skill you want to learn</option>

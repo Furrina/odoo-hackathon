@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
+import { SKILL_LIST } from '../skills';
 
 const Profile = () => {
   const { user, updateUser } = useAuth();
@@ -289,20 +290,19 @@ const Profile = () => {
       <div className="skills-section">
         <h3>Skills I Can Offer</h3>
         <div className="skill-input-group">
-          <input
-            type="text"
-            placeholder="Add a skill you can teach"
+          <label htmlFor="add-offered-skill">Add Skill Offered:</label>
+          <select
+            id="add-offered-skill"
             value={newSkill.offered}
-            onChange={(e) => setNewSkill(prev => ({ ...prev, offered: e.target.value }))}
+            onChange={e => setNewSkill(prev => ({ ...prev, offered: e.target.value }))}
             className="form-control"
-          />
-          <button 
-            onClick={() => addSkill('offered')} 
-            className="btn btn-success"
-            disabled={!newSkill.offered.trim()}
           >
-            Add
-          </button>
+            <option value="">Select a skill</option>
+            {SKILL_LIST.filter(skill => !formData.skillsOffered.includes(skill)).map(skill => (
+              <option key={skill} value={skill}>{skill}</option>
+            ))}
+          </select>
+          <button type="button" className="btn btn-secondary" onClick={() => addSkill('offered')}>Add</button>
         </div>
         <div>
           {formData.skillsOffered.map((skill, index) => (
@@ -328,20 +328,19 @@ const Profile = () => {
       <div className="skills-section">
         <h3>Skills I Want to Learn</h3>
         <div className="skill-input-group">
-          <input
-            type="text"
-            placeholder="Add a skill you want to learn"
+          <label htmlFor="add-wanted-skill">Add Skill Wanted:</label>
+          <select
+            id="add-wanted-skill"
             value={newSkill.wanted}
-            onChange={(e) => setNewSkill(prev => ({ ...prev, wanted: e.target.value }))}
+            onChange={e => setNewSkill(prev => ({ ...prev, wanted: e.target.value }))}
             className="form-control"
-          />
-          <button 
-            onClick={() => addSkill('wanted')} 
-            className="btn btn-success"
-            disabled={!newSkill.wanted.trim()}
           >
-            Add
-          </button>
+            <option value="">Select a skill</option>
+            {SKILL_LIST.filter(skill => !formData.skillsWanted.includes(skill)).map(skill => (
+              <option key={skill} value={skill}>{skill}</option>
+            ))}
+          </select>
+          <button type="button" className="btn btn-secondary" onClick={() => addSkill('wanted')}>Add</button>
         </div>
         <div>
           {formData.skillsWanted.map((skill, index) => (

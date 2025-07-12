@@ -30,6 +30,11 @@ const userSchema = new mongoose.Schema({
         type: String,
         trim: true
     }],
+    skillDescriptions: {
+        type: Map,
+        of: String,
+        default: {}
+    },
     skillsWanted: [{
         type: String,
         trim: true
@@ -55,7 +60,7 @@ const userSchema = new mongoose.Schema({
     },
     rating: {
         type: Number,
-        default: 0,
+        default: 3.5,
         min: 0,
         max: 5
     },

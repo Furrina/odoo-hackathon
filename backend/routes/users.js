@@ -2,31 +2,55 @@ const express = require('express');
 const User = require('../models/User');
 const { auth } = require('../middleware/auth');
 const { body, validationResult } = require('express-validator');
+const { adminAuth } = require('../middleware/adminAuth');
 
 const router = express.Router();
 
 // Get all public users (for browsing)
 router.get('/browse', async (req, res) => {
   try {
-    const { skill, location } = req.query;
+    const { skill, location, availability } = req.query;
     let query = { isPublic: true, isBanned: false };
 
     if (skill) {
-      query.$or = [
-        { skillsOffered: { $regex: skill, $options: 'i' } },
-        { skillsWanted: { $regex: skill, $options: 'i' } }
-      ];
+      query.skillsOffered = { $regex: skill, $options: 'i' };
     }
 
     if (location) {
       query.location = { $regex: location, $options: 'i' };
     }
 
-    const users = await User.find(query)
-      .select('name location skillsOffered skillsWanted availability rating profilePhoto')
-      .sort({ rating: -1 });
+    // Availability filter (can be array or string)
+    if (availability) {
+      const availArr = Array.isArray(availability) ? availability : [availability];
+      query.$or = availArr.map(a => ({ [`availability.${a}`]: true }));
+    }
 
-    res.json(users);
+    let page = parseInt(req.query.page) || 1;
+    let limit = parseInt(req.query.limit) || 10;
+    let skip = (page - 1) * limit;
+    let total = await User.countDocuments(query);
+    let users = await User.find(query)
+      .select('name location skillsOffered skillsWanted availability rating profilePhoto')
+      .sort({ rating: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    // If logged in, filter users to only those who can accept a request from the current user
+    if (req.user && req.user.skillsOffered && req.user.skillsOffered.length > 0) {
+      users = users.filter(u => {
+        if (!u.skillsWanted || u._id.toString() === req.user._id.toString()) return false;
+        // Intersection between my offered and their wanted
+        return u.skillsWanted.some(skill => req.user.skillsOffered.includes(skill));
+      });
+    }
+
+    // If searching by skill, exclude users who want the same skill as the current user (if the current user also wants it)
+    if (skill && req.user && req.user.skillsWanted && req.user.skillsWanted.includes(skill)) {
+      users = users.filter(u => !(u.skillsWanted && u.skillsWanted.includes(skill)));
+    }
+
+    res.json({ users, total });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
@@ -168,6 +192,57 @@ router.delete('/skills-wanted/:skill', auth, async (req, res) => {
     await user.save();
 
     res.json(user.skillsWanted);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// User: Set or update a skill description
+router.post('/skills-offered/:skill/description', auth, async (req, res) => {
+  try {
+    const { description } = req.body;
+    const user = await User.findById(req.user._id);
+    if (!user.skillsOffered.includes(req.params.skill)) {
+      return res.status(400).json({ message: 'You do not offer this skill' });
+    }
+    user.skillDescriptions.set(req.params.skill, description);
+    await user.save();
+    res.json({ skill: req.params.skill, description });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Admin: Remove a skill description (reject inappropriate)
+router.delete('/skills-offered/:userId/:skill/description', adminAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    user.skillDescriptions.delete(req.params.skill);
+    await user.save();
+    res.json({ message: 'Skill description removed' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Admin: Get all skill descriptions for moderation
+router.get('/skills/descriptions', adminAuth, async (req, res) => {
+  try {
+    const users = await User.find({});
+    const descriptions = [];
+    users.forEach(user => {
+      user.skillsOffered.forEach(skill => {
+        const desc = user.skillDescriptions.get(skill);
+        if (desc) {
+          descriptions.push({ userId: user._id, userName: user.name, skill, description: desc });
+        }
+      });
+    });
+    res.json(descriptions);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });

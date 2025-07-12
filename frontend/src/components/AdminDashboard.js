@@ -14,6 +14,11 @@ const AdminDashboard = () => {
     content: '',
     type: 'info'
   });
+  const [skillDescriptions, setSkillDescriptions] = useState([]);
+  const [moderationLoading, setModerationLoading] = useState(false);
+  const [analytics, setAnalytics] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [swapFilter, setSwapFilter] = useState('');
 
   useEffect(() => {
     fetchStats();
@@ -57,6 +62,18 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchSkillDescriptions = async () => {
+    setModerationLoading(true);
+    try {
+      const res = await axios.get('/api/users/skills/descriptions');
+      setSkillDescriptions(res.data);
+    } catch (e) {
+      setError('Failed to load skill descriptions');
+    } finally {
+      setModerationLoading(false);
+    }
+  };
+
   const handleBanUser = async (userId, isBanned) => {
     try {
       await axios.put(`/api/admin/users/${userId}/ban`, { isBanned });
@@ -78,11 +95,32 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleRejectDescription = async (userId, skill) => {
+    try {
+      await axios.delete(`/api/users/skills-offered/${userId}/${skill}/description`);
+      fetchSkillDescriptions();
+    } catch (e) {
+      setError('Failed to reject skill description');
+    }
+  };
+
+  const handleSwapAction = async (swapId, action) => {
+    try {
+      await axios.put(`/api/swaps/${swapId}/${action}`);
+      fetchSwaps();
+    } catch (error) {
+      setError(error.response?.data?.message || `Failed to ${action} swap`);
+    }
+  };
+
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setError('');
     
     switch (tab) {
+      case 'stats':
+        fetchStats();
+        break;
       case 'users':
         fetchUsers();
         break;
@@ -92,8 +130,45 @@ const AdminDashboard = () => {
       case 'messages':
         fetchMessages();
         break;
+      case 'moderation':
+        fetchSkillDescriptions();
+        break;
+      case 'analytics':
+        fetchAnalytics();
+        break;
       default:
         break;
+    }
+  };
+
+  const fetchAnalytics = async () => {
+    try {
+      const response = await axios.get('/api/admin/analytics');
+      setAnalytics(response.data);
+    } catch (error) {
+      setError('Failed to load analytics');
+    }
+  };
+
+  const downloadReport = async (reportType, format = 'csv') => {
+    setReportLoading(true);
+    try {
+      const response = await axios.get(`/api/admin/reports/${reportType}/download?format=${format}`, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${reportType}-report.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      setError('Failed to download report');
+    } finally {
+      setReportLoading(false);
     }
   };
 
@@ -135,6 +210,20 @@ const AdminDashboard = () => {
           className={`btn ${activeTab === 'messages' ? 'btn-primary' : 'btn-secondary'}`}
         >
           Messages
+        </button>
+        <button
+          onClick={() => handleTabChange('moderation')}
+          className={`btn ${activeTab === 'moderation' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ marginRight: '10px' }}
+        >
+          Skill Moderation
+        </button>
+        <button
+          onClick={() => handleTabChange('analytics')}
+          className={`btn ${activeTab === 'analytics' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ marginRight: '10px' }}
+        >
+          Analytics
         </button>
       </div>
 
@@ -216,31 +305,45 @@ const AdminDashboard = () => {
       {/* Swaps Tab */}
       {activeTab === 'swaps' && (
         <div>
-          <h3>Swap Management</h3>
-          <div className="card">
+          <h3>Swap Monitoring</h3>
+          <div className="swap-filters">
+            <select 
+              value={swapFilter}
+              onChange={(e) => setSwapFilter(e.target.value)} 
+              className="form-control"
+              style={{ width: '200px' }}
+            >
+              <option value="">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="accepted">Accepted</option>
+              <option value="completed">Completed</option>
+              <option value="rejected">Rejected</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          
+          <div className="swaps-table">
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #ddd' }}>
                   <th style={{ padding: '10px', textAlign: 'left' }}>Requester</th>
                   <th style={{ padding: '10px', textAlign: 'left' }}>Recipient</th>
-                  <th style={{ padding: '10px', textAlign: 'left' }}>Skills</th>
+                  <th style={{ padding: '10px', textAlign: 'left' }}>Skill Offered</th>
+                  <th style={{ padding: '10px', textAlign: 'left' }}>Skill Requested</th>
                   <th style={{ padding: '10px', textAlign: 'left' }}>Status</th>
-                  <th style={{ padding: '10px', textAlign: 'left' }}>Date</th>
+                  <th style={{ padding: '10px', textAlign: 'left' }}>Created</th>
+                  <th style={{ padding: '10px', textAlign: 'left' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {swaps.map(swap => (
+                {swaps
+                  .filter(swap => !swapFilter || swap.status === swapFilter)
+                  .map(swap => (
                   <tr key={swap._id} style={{ borderBottom: '1px solid #eee' }}>
                     <td style={{ padding: '10px' }}>{swap.requester.name}</td>
                     <td style={{ padding: '10px' }}>{swap.recipient.name}</td>
-                    <td style={{ padding: '10px' }}>
-                      <div>
-                        <strong>Offered:</strong> {swap.skillOffered}
-                      </div>
-                      <div>
-                        <strong>Requested:</strong> {swap.skillRequested}
-                      </div>
-                    </td>
+                    <td style={{ padding: '10px' }}>{swap.skillOffered}</td>
+                    <td style={{ padding: '10px' }}>{swap.skillRequested}</td>
                     <td style={{ padding: '10px' }}>
                       <span className={`status-badge ${getStatusColor(swap.status)}`}>
                         {swap.status.charAt(0).toUpperCase() + swap.status.slice(1)}
@@ -248,6 +351,15 @@ const AdminDashboard = () => {
                     </td>
                     <td style={{ padding: '10px' }}>
                       {new Date(swap.createdAt).toLocaleDateString()}
+                    </td>
+                    <td style={{ padding: '10px' }}>
+                      <button 
+                        onClick={() => handleSwapAction(swap._id, 'complete')}
+                        className="btn btn-success btn-sm"
+                        disabled={swap.status !== 'accepted'}
+                      >
+                        Complete
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -325,6 +437,141 @@ const AdminDashboard = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Skill Moderation Tab */}
+      {activeTab === 'moderation' && (
+        <div>
+          <h3>Skill Description Moderation</h3>
+          {moderationLoading ? <div>Loading...</div> : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr><th>User</th><th>Skill</th><th>Description</th><th>Action</th></tr>
+              </thead>
+              <tbody>
+                {skillDescriptions.map(desc => (
+                  <tr key={desc.userId + desc.skill}>
+                    <td>{desc.userName}</td>
+                    <td>{desc.skill}</td>
+                    <td>{desc.description}</td>
+                    <td><button className="btn btn-danger" onClick={() => handleRejectDescription(desc.userId, desc.skill)}>Reject</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* Analytics Tab */}
+      {activeTab === 'analytics' && analytics && (
+        <div className="analytics-dashboard">
+          <div className="analytics-header">
+            <h3>Platform Analytics</h3>
+            <div className="report-actions">
+              <button 
+                onClick={() => downloadReport('user-activity', 'csv')} 
+                className="btn btn-secondary"
+                disabled={reportLoading}
+              >
+                {reportLoading ? 'Downloading...' : 'Download User Report'}
+              </button>
+              <button 
+                onClick={() => downloadReport('feedback-logs', 'csv')} 
+                className="btn btn-secondary"
+                disabled={reportLoading}
+              >
+                {reportLoading ? 'Downloading...' : 'Download Feedback Report'}
+              </button>
+              <button 
+                onClick={() => downloadReport('swap-stats', 'csv')} 
+                className="btn btn-secondary"
+                disabled={reportLoading}
+              >
+                {reportLoading ? 'Downloading...' : 'Download Swap Report'}
+              </button>
+            </div>
+          </div>
+          
+          <div className="analytics-grid">
+            <div className="analytics-card">
+              <h4>User Analytics</h4>
+              <div className="analytics-stats">
+                <div className="stat-item">
+                  <span className="stat-label">Total Users:</span>
+                  <span className="stat-value">{analytics.userAnalytics.totalUsers}</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-label">Active Users:</span>
+                  <span className="stat-value">{analytics.userAnalytics.activeUsers}</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-label">Banned Users:</span>
+                  <span className="stat-value">{analytics.userAnalytics.bannedUsers}</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-label">Public Profiles:</span>
+                  <span className="stat-value">{analytics.userAnalytics.publicProfiles}</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-label">Average Rating:</span>
+                  <span className="stat-value">{analytics.userAnalytics.averageRating}</span>
+                </div>
+              </div>
+              
+              <div className="top-skills">
+                <h5>Top Skills Offered</h5>
+                <div className="skills-list">
+                  {analytics.userAnalytics.topSkills.map((skill, index) => (
+                    <div key={index} className="skill-item">
+                      <span>{skill.skill}</span>
+                      <span className="skill-count">{skill.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            <div className="analytics-card">
+              <h4>Swap Analytics</h4>
+              <div className="analytics-stats">
+                <div className="stat-item">
+                  <span className="stat-label">Total Swaps:</span>
+                  <span className="stat-value">{analytics.swapAnalytics.totalSwaps}</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-label">Completion Rate:</span>
+                  <span className="stat-value">{analytics.swapAnalytics.completionRate}%</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-label">Average Rating:</span>
+                  <span className="stat-value">{analytics.swapAnalytics.averageRating}</span>
+                </div>
+              </div>
+              
+              <div className="swap-status-breakdown">
+                <h5>Swap Status Breakdown</h5>
+                <div className="status-list">
+                  <div className="status-item pending">
+                    <span>Pending: {analytics.swapAnalytics.byStatus.pending}</span>
+                  </div>
+                  <div className="status-item accepted">
+                    <span>Accepted: {analytics.swapAnalytics.byStatus.accepted}</span>
+                  </div>
+                  <div className="status-item completed">
+                    <span>Completed: {analytics.swapAnalytics.byStatus.completed}</span>
+                  </div>
+                  <div className="status-item rejected">
+                    <span>Rejected: {analytics.swapAnalytics.byStatus.rejected}</span>
+                  </div>
+                  <div className="status-item cancelled">
+                    <span>Cancelled: {analytics.swapAnalytics.byStatus.cancelled}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

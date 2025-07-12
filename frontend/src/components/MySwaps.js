@@ -8,6 +8,12 @@ const MySwaps = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('received');
+  const [ratingForm, setRatingForm] = useState({
+    swapId: '',
+    rating: 5,
+    comment: '',
+    forRole: ''
+  });
 
   useEffect(() => {
     fetchSwaps();
@@ -42,6 +48,71 @@ const MySwaps = () => {
         setError(error.response?.data?.message || 'Failed to delete request');
       }
     }
+  };
+
+  const handleRatingSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post(`/api/swaps/${ratingForm.swapId}/rate`, {
+        rating: ratingForm.rating,
+        comment: ratingForm.comment,
+        forRole: ratingForm.forRole
+      });
+      setRatingForm({ swapId: '', rating: 5, comment: '', forRole: '' });
+      fetchSwaps();
+    } catch (error) {
+      setError('Failed to submit rating');
+    }
+  };
+
+  const showRatingForm = (swapId, forRole) => {
+    setRatingForm({ swapId, rating: 5, comment: '', forRole });
+  };
+
+  const cancelRating = () => {
+    setRatingForm({ swapId: '', rating: 5, comment: '', forRole: '' });
+  };
+
+  // Helper function to display user rating
+  const displayUserRating = (user) => {
+    if ((user.totalRatings || 0) === 0) {
+      return (
+        <div className="rating">
+          {'★'.repeat(4)}{'☆'}
+          <span style={{ color: '#666', marginLeft: '5px' }}>(3.5)</span>
+        </div>
+      );
+    } else if (user.rating > 0) {
+      return (
+        <div className="rating">
+          {'★'.repeat(Math.round(user.rating))}
+          {'☆'.repeat(5 - Math.round(user.rating))}
+          <span style={{ color: '#666', marginLeft: '5px' }}>({user.rating.toFixed(1)})</span>
+        </div>
+      );
+    } else {
+      return <div style={{ color: '#999', fontSize: '14px' }}>Unrated</div>;
+    }
+  };
+
+  // Helper function to check if user can rate a swap
+  const canRateSwap = (swap, currentUserId) => {
+    if (swap.status !== 'completed') return false;
+    
+    const isRequester = swap.requester._id === currentUserId;
+    const isRecipient = swap.recipient._id === currentUserId;
+    
+    if (isRequester && !swap.requesterRating) return true;
+    if (isRecipient && !swap.recipientRating) return true;
+    
+    return false;
+  };
+
+  // Helper function to get the role for rating
+  const getRatingRole = (swap, currentUserId) => {
+    if (swap.requester._id === currentUserId) return 'recipient';
+    if (swap.recipient._id === currentUserId) return 'requester';
+    return '';
   };
 
   const getStatusColor = (status) => {
@@ -135,6 +206,7 @@ const MySwaps = () => {
                           )}
                           <div>
                             <h4>{swap.requester.name}</h4>
+                            {displayUserRating(swap.requester)}
                             <span className={`status-badge ${getStatusColor(swap.status)}`}>
                               {swap.status.charAt(0).toUpperCase() + swap.status.slice(1)}
                             </span>
@@ -163,6 +235,33 @@ const MySwaps = () => {
                             Reject
                           </button>
                         </div>
+                        {swap.status === 'completed' && canRateSwap(swap, user._id) && (
+                          <div className="rating-form">
+                            <button 
+                              onClick={() => showRatingForm(swap._id, getRatingRole(swap, user._id))}
+                              className="btn btn-secondary"
+                            >
+                              Rate this swap
+                            </button>
+                          </div>
+                        )}
+
+                        {swap.status === 'completed' && (
+                          <div className="swap-ratings">
+                            {swap.requesterRating && (
+                              <div>
+                                <strong>Your rating:</strong> {swap.requesterRating.rating}/5
+                                {swap.requesterRating.comment && <p>"{swap.requesterRating.comment}"</p>}
+                              </div>
+                            )}
+                            {swap.recipientRating && (
+                              <div>
+                                <strong>Their rating:</strong> {swap.recipientRating.rating}/5
+                                {swap.recipientRating.comment && <p>"{swap.recipientRating.comment}"</p>}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -291,6 +390,43 @@ const MySwaps = () => {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {ratingForm.swapId && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h3>Rate this swap</h3>
+            <form onSubmit={handleRatingSubmit}>
+              <div className="form-group">
+                <label>Rating:</label>
+                <select 
+                  value={ratingForm.rating} 
+                  onChange={e => setRatingForm(prev => ({ ...prev, rating: parseInt(e.target.value) }))}
+                  className="form-control"
+                >
+                  <option value={5}>5 - Excellent</option>
+                  <option value={4}>4 - Very Good</option>
+                  <option value={3}>3 - Good</option>
+                  <option value={2}>2 - Fair</option>
+                  <option value={1}>1 - Poor</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Comment (optional):</label>
+                <textarea 
+                  value={ratingForm.comment}
+                  onChange={e => setRatingForm(prev => ({ ...prev, comment: e.target.value }))}
+                  className="form-control"
+                  rows="3"
+                />
+              </div>
+              <div className="flex" style={{ gap: '10px' }}>
+                <button type="submit" className="btn btn-primary">Submit Rating</button>
+                <button type="button" onClick={cancelRating} className="btn btn-secondary">Cancel</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
