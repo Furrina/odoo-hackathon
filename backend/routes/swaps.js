@@ -62,13 +62,13 @@ router.post('/', auth, [
         await swap.save();
 
         const populatedSwap = await Swap.findById(swap._id)
-            .populate('requester', 'name')
-            .populate('recipient', 'name');
+            .populate('requester', 'name profilePhoto')
+            .populate('recipient', 'name profilePhoto');
 
         res.status(201).json(populatedSwap);
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error' });
+        console.error('Swap creation error:', error);
+        res.status(500).json({ message: 'Server error', error: error.message, stack: error.stack });
     }
 });
 

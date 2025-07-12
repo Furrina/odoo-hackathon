@@ -179,13 +179,17 @@ const Profile = () => {
         
         <h2>{profile.name}</h2>
         {profile.location && <p>{profile.location}</p>}
-        {profile.rating > 0 && (
+        {profile.rating > 0 ? (
           <div className="rating">
             {'★'.repeat(Math.round(profile.rating))}
             {'☆'.repeat(5 - Math.round(profile.rating))}
             <span style={{ color: '#666', marginLeft: '5px' }}>
               ({profile.rating.toFixed(1)})
             </span>
+          </div>
+        ) : (
+          <div style={{ color: '#999', fontSize: '16px' }}>
+            Unrated
           </div>
         )}
       </div>
@@ -220,7 +224,7 @@ const Profile = () => {
             </div>
 
             <div className="form-group">
-              <label htmlFor="location">Location</label>
+              <label htmlFor="location">Address/Location</label>
               <input
                 type="text"
                 id="location"
@@ -259,7 +263,7 @@ const Profile = () => {
                   onChange={handleChange}
                   style={{ marginRight: '8px' }}
                 />
-                Make my profile public
+                Make my profile public (visible to other users)
               </label>
             </div>
 
@@ -270,8 +274,8 @@ const Profile = () => {
         ) : (
           <div>
             <p><strong>Name:</strong> {profile.name}</p>
-            <p><strong>Location:</strong> {profile.location || 'Not specified'}</p>
-            <p><strong>Profile:</strong> {profile.isPublic ? 'Public' : 'Private'}</p>
+            <p><strong>Address:</strong> {profile.location || 'Not specified'}</p>
+            <p><strong>Profile Visibility:</strong> {profile.isPublic ? 'Public' : 'Private'}</p>
             <p><strong>Availability:</strong></p>
             <ul>
               {Object.entries(profile.availability).map(([key, value]) => (

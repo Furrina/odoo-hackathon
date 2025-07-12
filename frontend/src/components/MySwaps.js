@@ -7,11 +7,7 @@ const MySwaps = () => {
   const [swaps, setSwaps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [ratingForm, setRatingForm] = useState({
-    swapId: '',
-    rating: 5,
-    comment: ''
-  });
+  const [activeTab, setActiveTab] = useState('received');
 
   useEffect(() => {
     fetchSwaps();
@@ -37,17 +33,14 @@ const MySwaps = () => {
     }
   };
 
-  const handleRatingSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      await axios.post(`/api/swaps/${ratingForm.swapId}/rate`, {
-        rating: ratingForm.rating,
-        comment: ratingForm.comment
-      });
-      setRatingForm({ swapId: '', rating: 5, comment: '' });
-      fetchSwaps();
-    } catch (error) {
-      setError(error.response?.data?.message || 'Failed to submit rating');
+  const handleDeleteSwap = async (swapId) => {
+    if (window.confirm('Are you sure you want to delete this request?')) {
+      try {
+        await axios.put(`/api/swaps/${swapId}/cancel`);
+        fetchSwaps();
+      } catch (error) {
+        setError(error.response?.data?.message || 'Failed to delete request');
+      }
     }
   };
 
@@ -62,11 +55,13 @@ const MySwaps = () => {
     }
   };
 
-  const canRate = (swap) => {
-    return swap.status === 'completed' && 
-           !swap.requesterRating?.rating && 
-           !swap.recipientRating?.rating;
-  };
+  // Filter swaps based on current user's role
+  const sentSwaps = swaps.filter(swap => swap.requester._id === user._id);
+  const receivedSwaps = swaps.filter(swap => swap.recipient._id === user._id);
+
+  // Group received swaps by status
+  const pendingReceived = receivedSwaps.filter(swap => swap.status === 'pending');
+  const otherReceived = receivedSwaps.filter(swap => swap.status !== 'pending');
 
   if (loading) {
     return <div className="loading">Loading your swaps...</div>;
@@ -80,199 +75,222 @@ const MySwaps = () => {
     <div>
       <h2 className="text-center mb-20">My Skill Swaps</h2>
 
-      {swaps.length === 0 ? (
-        <div className="text-center">
-          <p>You don't have any swaps yet.</p>
-          <p>Start by browsing users and proposing skill swaps!</p>
-        </div>
-      ) : (
-        <div>
-          {swaps.map(swap => {
-            const isRequester = swap.requester._id === user._id;
-            const otherUser = isRequester ? swap.recipient : swap.requester;
-            
-            return (
-              <div key={swap._id} className={`swap-card ${swap.status}`}>
-                <div className="flex flex-between mb-20">
-                  <h3>
-                    {isRequester ? 'You offered' : 'You received'} a swap request
-                  </h3>
-                  <span className={`status-badge ${getStatusColor(swap.status)}`}>
-                    {swap.status.charAt(0).toUpperCase() + swap.status.slice(1)}
-                  </span>
-                </div>
+      {/* Tab Navigation */}
+      <div className="flex" style={{ marginBottom: '20px', borderBottom: '1px solid #ddd' }}>
+        <button
+          onClick={() => setActiveTab('received')}
+          className={`btn ${activeTab === 'received' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ marginRight: '10px' }}
+        >
+          Received ({receivedSwaps.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('sent')}
+          className={`btn ${activeTab === 'sent' ? 'btn-primary' : 'btn-secondary'}`}
+        >
+          Sent ({sentSwaps.length})
+        </button>
+      </div>
 
-                <div className="grid grid-2">
-                  <div>
-                    <h4>Swap Details</h4>
-                    <p><strong>You offer:</strong> {swap.skillOffered}</p>
-                    <p><strong>You receive:</strong> {swap.skillRequested}</p>
+      {/* Received Swaps Tab */}
+      {activeTab === 'received' && (
+        <div>
+          {receivedSwaps.length === 0 ? (
+            <div className="text-center">
+              <p>You haven't received any swap requests yet.</p>
+            </div>
+          ) : (
+            <div>
+              {/* Pending Requests - Actions Section */}
+              {pendingReceived.length > 0 && (
+                <div className="card mb-20">
+                  <h3>Actions Required ({pendingReceived.length})</h3>
+                  <div className="grid grid-2">
+                    {pendingReceived.map(swap => (
+                      <div key={swap._id} className="swap-card pending">
+                        <div className="flex" style={{ alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
+                          {swap.requester.profilePhoto ? (
+                            <img 
+                              src={swap.requester.profilePhoto} 
+                              alt={swap.requester.name}
+                              style={{ width: '60px', height: '60px', borderRadius: '50%' }}
+                            />
+                          ) : (
+                            <div 
+                              style={{ 
+                                width: '60px', 
+                                height: '60px', 
+                                borderRadius: '50%',
+                                backgroundColor: '#e9ecef',
+                                color: '#495057',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 'bold',
+                                fontSize: '20px'
+                              }}
+                            >
+                              {swap.requester.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            <h4>{swap.requester.name}</h4>
+                            <span className={`status-badge ${getStatusColor(swap.status)}`}>
+                              {swap.status.charAt(0).toUpperCase() + swap.status.slice(1)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style={{ marginBottom: '15px' }}>
+                          <p><strong>Wants to learn:</strong> {swap.skillOffered}</p>
+                          <p><strong>Can teach you:</strong> {swap.skillRequested}</p>
+                          {swap.message && (
+                            <p><strong>Message:</strong> "{swap.message}"</p>
+                          )}
+                        </div>
+
+                        <div className="flex" style={{ gap: '10px' }}>
+                          <button 
+                            onClick={() => handleSwapAction(swap._id, 'accept')}
+                            className="btn btn-success"
+                          >
+                            Accept
+                          </button>
+                          <button 
+                            onClick={() => handleSwapAction(swap._id, 'reject')}
+                            className="btn btn-danger"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Other Received Requests - Log Section */}
+              {otherReceived.length > 0 && (
+                <div className="card">
+                  <h3>Request Log</h3>
+                  <div className="grid grid-2">
+                    {otherReceived.map(swap => (
+                      <div key={swap._id} className={`swap-card ${swap.status}`}>
+                        <div className="flex" style={{ alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
+                          {swap.requester.profilePhoto ? (
+                            <img 
+                              src={swap.requester.profilePhoto} 
+                              alt={swap.requester.name}
+                              style={{ width: '50px', height: '50px', borderRadius: '50%' }}
+                            />
+                          ) : (
+                            <div 
+                              style={{ 
+                                width: '50px', 
+                                height: '50px', 
+                                borderRadius: '50%',
+                                backgroundColor: '#e9ecef',
+                                color: '#495057',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 'bold'
+                              }}
+                            >
+                              {swap.requester.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            <h4>{swap.requester.name}</h4>
+                            <span className={`status-badge ${getStatusColor(swap.status)}`}>
+                              {swap.status.charAt(0).toUpperCase() + swap.status.slice(1)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <p><strong>Wanted to learn:</strong> {swap.skillOffered}</p>
+                          <p><strong>Could teach you:</strong> {swap.skillRequested}</p>
+                          {swap.message && (
+                            <p><strong>Message:</strong> "{swap.message}"</p>
+                          )}
+                          <p><strong>Date:</strong> {new Date(swap.createdAt).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Sent Swaps Tab */}
+      {activeTab === 'sent' && (
+        <div>
+          {sentSwaps.length === 0 ? (
+            <div className="text-center">
+              <p>You haven't sent any swap requests yet.</p>
+              <p>Start by browsing users and proposing skill swaps!</p>
+            </div>
+          ) : (
+            <div className="grid grid-2">
+              {sentSwaps.map(swap => (
+                <div key={swap._id} className={`swap-card ${swap.status}`}>
+                  <div className="flex" style={{ alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
+                    {swap.recipient.profilePhoto ? (
+                      <img 
+                        src={swap.recipient.profilePhoto} 
+                        alt={swap.recipient.name}
+                        style={{ width: '50px', height: '50px', borderRadius: '50%' }}
+                      />
+                    ) : (
+                      <div 
+                        style={{ 
+                          width: '50px', 
+                          height: '50px', 
+                          borderRadius: '50%',
+                          backgroundColor: '#e9ecef',
+                          color: '#495057',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        {swap.recipient.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <h4>{swap.recipient.name}</h4>
+                      <span className={`status-badge ${getStatusColor(swap.status)}`}>
+                        {swap.status.charAt(0).toUpperCase() + swap.status.slice(1)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: '15px' }}>
+                    <p><strong>You offered:</strong> {swap.skillOffered}</p>
+                    <p><strong>You want to learn:</strong> {swap.skillRequested}</p>
                     {swap.message && (
-                      <p><strong>Message:</strong> {swap.message}</p>
+                      <p><strong>Your message:</strong> "{swap.message}"</p>
                     )}
                     <p><strong>Date:</strong> {new Date(swap.createdAt).toLocaleDateString()}</p>
                   </div>
 
-                  <div>
-                    <h4>Other User</h4>
-                    <div className="flex" style={{ alignItems: 'center', gap: '10px' }}>
-                      {otherUser.profilePhoto ? (
-                        <img 
-                          src={otherUser.profilePhoto} 
-                          alt={otherUser.name}
-                          style={{ width: '50px', height: '50px', borderRadius: '50%' }}
-                        />
-                      ) : (
-                        <div 
-                          style={{ 
-                            width: '50px', 
-                            height: '50px', 
-                            borderRadius: '50%',
-                            backgroundColor: '#e9ecef',
-                            color: '#495057',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          {otherUser.name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <div>
-                        <p><strong>{otherUser.name}</strong></p>
-                        {otherUser.rating > 0 && (
-                          <div className="rating">
-                            {'★'.repeat(Math.round(otherUser.rating))}
-                            {'☆'.repeat(5 - Math.round(otherUser.rating))}
-                            <span style={{ color: '#666', marginLeft: '5px' }}>
-                              ({otherUser.rating.toFixed(1)})
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                {swap.status === 'pending' && (
-                  <div className="flex" style={{ gap: '10px', marginTop: '15px' }}>
-                    {!isRequester && (
-                      <>
-                        <button 
-                          onClick={() => handleSwapAction(swap._id, 'accept')}
-                          className="btn btn-success"
-                        >
-                          Accept
-                        </button>
-                        <button 
-                          onClick={() => handleSwapAction(swap._id, 'reject')}
-                          className="btn btn-danger"
-                        >
-                          Reject
-                        </button>
-                      </>
-                    )}
-                    {isRequester && (
-                      <button 
-                        onClick={() => handleSwapAction(swap._id, 'cancel')}
-                        className="btn btn-warning"
-                      >
-                        Cancel Request
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {swap.status === 'accepted' && (
-                  <div className="flex" style={{ gap: '10px', marginTop: '15px' }}>
+                  {swap.status === 'pending' && (
                     <button 
-                      onClick={() => handleSwapAction(swap._id, 'complete')}
-                      className="btn btn-success"
+                      onClick={() => handleDeleteSwap(swap._id)}
+                      className="btn btn-danger"
                     >
-                      Mark as Completed
+                      Delete Request
                     </button>
-                  </div>
-                )}
-
-                {/* Rating Section */}
-                {canRate(swap) && (
-                  <div className="card" style={{ marginTop: '15px' }}>
-                    <h4>Rate this swap</h4>
-                    <form onSubmit={handleRatingSubmit}>
-                      <div className="form-group">
-                        <label>Rating:</label>
-                        <select
-                          value={ratingForm.rating}
-                          onChange={(e) => setRatingForm(prev => ({ 
-                            ...prev, 
-                            rating: parseInt(e.target.value),
-                            swapId: swap._id 
-                          }))}
-                          className="form-control"
-                          style={{ width: '100px' }}
-                        >
-                          {[5, 4, 3, 2, 1].map(num => (
-                            <option key={num} value={num}>
-                              {num} {num === 1 ? 'Star' : 'Stars'}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="form-group">
-                        <label>Comment:</label>
-                        <textarea
-                          value={ratingForm.comment}
-                          onChange={(e) => setRatingForm(prev => ({ 
-                            ...prev, 
-                            comment: e.target.value 
-                          }))}
-                          className="form-control"
-                          rows="3"
-                          placeholder="Share your experience..."
-                        />
-                      </div>
-                      <button type="submit" className="btn btn-primary">
-                        Submit Rating
-                      </button>
-                    </form>
-                  </div>
-                )}
-
-                {/* Show existing ratings */}
-                {(swap.requesterRating?.rating || swap.recipientRating?.rating) && (
-                  <div className="card" style={{ marginTop: '15px' }}>
-                    <h4>Ratings</h4>
-                    {swap.requesterRating?.rating && (
-                      <div>
-                        <p><strong>{swap.requester.name}'s rating:</strong></p>
-                        <div className="rating">
-                          {'★'.repeat(swap.requesterRating.rating)}
-                          {'☆'.repeat(5 - swap.requesterRating.rating)}
-                        </div>
-                        {swap.requesterRating.comment && (
-                          <p><em>"{swap.requesterRating.comment}"</em></p>
-                        )}
-                      </div>
-                    )}
-                    {swap.recipientRating?.rating && (
-                      <div>
-                        <p><strong>{swap.recipient.name}'s rating:</strong></p>
-                        <div className="rating">
-                          {'★'.repeat(swap.recipientRating.rating)}
-                          {'☆'.repeat(5 - swap.recipientRating.rating)}
-                        </div>
-                        {swap.recipientRating.comment && (
-                          <p><em>"{swap.recipientRating.comment}"</em></p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

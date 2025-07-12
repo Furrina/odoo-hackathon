@@ -33,7 +33,7 @@ const Navbar = () => {
             <>
               <li>
                 <Link to="/my-swaps" className={isActive('/my-swaps')}>
-                  My Swaps
+                  Status
                 </Link>
               </li>
               <li>

@@ -11,8 +11,8 @@ const UserDetail = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showSwapForm, setShowSwapForm] = useState(false);
-  const [swapForm, setSwapForm] = useState({
+  const [showRequestForm, setShowRequestForm] = useState(false);
+  const [requestForm, setRequestForm] = useState({
     skillOffered: '',
     skillRequested: '',
     message: ''
@@ -33,10 +33,10 @@ const UserDetail = () => {
     }
   };
 
-  const handleSwapSubmit = async (e) => {
+  const handleRequestSubmit = async (e) => {
     e.preventDefault();
     
-    if (!swapForm.skillOffered || !swapForm.skillRequested) {
+    if (!requestForm.skillOffered || !requestForm.skillRequested) {
       setError('Please select both skills');
       return;
     }
@@ -44,18 +44,37 @@ const UserDetail = () => {
     try {
       await axios.post('/api/swaps', {
         recipientId: id,
-        skillOffered: swapForm.skillOffered,
-        skillRequested: swapForm.skillRequested,
-        message: swapForm.message
+        skillOffered: requestForm.skillOffered,
+        skillRequested: requestForm.skillRequested,
+        message: requestForm.message
       });
       
-      setShowSwapForm(false);
-      setSwapForm({ skillOffered: '', skillRequested: '', message: '' });
+      setShowRequestForm(false);
+      setRequestForm({ skillOffered: '', skillRequested: '', message: '' });
       navigate('/my-swaps');
     } catch (error) {
       setError(error.response?.data?.message || 'Failed to create swap request');
     }
   };
+
+  // Calculate skill intersections
+  const getSkillIntersections = () => {
+    if (!currentUser || !user) return { offered: [], requested: [] };
+
+    // Skills I can offer that they want
+    const offeredIntersection = currentUser.skillsOffered?.filter(skill => 
+      user.skillsWanted?.includes(skill)
+    ) || [];
+
+    // Skills I want that they can offer
+    const requestedIntersection = currentUser.skillsWanted?.filter(skill => 
+      user.skillsOffered?.includes(skill)
+    ) || [];
+
+    return { offered: offeredIntersection, requested: requestedIntersection };
+  };
+
+  const skillIntersections = getSkillIntersections();
 
   if (loading) {
     return <div className="loading">Loading user profile...</div>;
@@ -93,13 +112,17 @@ const UserDetail = () => {
         
         <h2>{user.name}</h2>
         {user.location && <p>{user.location}</p>}
-        {user.rating > 0 && (
+        {user.rating > 0 ? (
           <div className="rating">
             {'★'.repeat(Math.round(user.rating))}
             {'☆'.repeat(5 - Math.round(user.rating))}
             <span style={{ color: '#666', marginLeft: '5px' }}>
               ({user.rating.toFixed(1)})
             </span>
+          </div>
+        ) : (
+          <div style={{ color: '#999', fontSize: '16px' }}>
+            Unrated
           </div>
         )}
       </div>
@@ -134,27 +157,44 @@ const UserDetail = () => {
       {currentUser && currentUser._id !== user._id && (
         <div className="card">
           <h3>Request a Skill Swap</h3>
-          {!showSwapForm ? (
-            <button 
-              onClick={() => setShowSwapForm(true)} 
-              className="btn btn-primary"
-            >
-              Propose Swap
-            </button>
+          
+          {!showRequestForm ? (
+            <div>
+              {skillIntersections.offered.length > 0 && skillIntersections.requested.length > 0 ? (
+                <button 
+                  onClick={() => setShowRequestForm(true)} 
+                  className="btn btn-primary"
+                >
+                  Send Swap Request
+                </button>
+              ) : (
+                <div className="alert alert-info">
+                  <p>No matching skills found for a swap:</p>
+                  <ul>
+                    {skillIntersections.offered.length === 0 && (
+                      <li>You don't have any skills they want to learn</li>
+                    )}
+                    {skillIntersections.requested.length === 0 && (
+                      <li>They don't have any skills you want to learn</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+            </div>
           ) : (
-            <form onSubmit={handleSwapSubmit}>
+            <form onSubmit={handleRequestSubmit}>
               <div className="form-group">
                 <label htmlFor="skillOffered">I can teach you:</label>
                 <select
                   id="skillOffered"
                   name="skillOffered"
                   className="form-control"
-                  value={swapForm.skillOffered}
-                  onChange={(e) => setSwapForm(prev => ({ ...prev, skillOffered: e.target.value }))}
+                  value={requestForm.skillOffered}
+                  onChange={(e) => setRequestForm(prev => ({ ...prev, skillOffered: e.target.value }))}
                   required
                 >
                   <option value="">Select a skill you can offer</option>
-                  {currentUser.skillsOffered?.map((skill, index) => (
+                  {skillIntersections.offered.map((skill, index) => (
                     <option key={index} value={skill}>{skill}</option>
                   ))}
                 </select>
@@ -166,12 +206,12 @@ const UserDetail = () => {
                   id="skillRequested"
                   name="skillRequested"
                   className="form-control"
-                  value={swapForm.skillRequested}
-                  onChange={(e) => setSwapForm(prev => ({ ...prev, skillRequested: e.target.value }))}
+                  value={requestForm.skillRequested}
+                  onChange={(e) => setRequestForm(prev => ({ ...prev, skillRequested: e.target.value }))}
                   required
                 >
                   <option value="">Select a skill you want to learn</option>
-                  {user.skillsOffered?.map((skill, index) => (
+                  {skillIntersections.requested.map((skill, index) => (
                     <option key={index} value={skill}>{skill}</option>
                   ))}
                 </select>
@@ -183,8 +223,8 @@ const UserDetail = () => {
                   id="message"
                   name="message"
                   className="form-control"
-                  value={swapForm.message}
-                  onChange={(e) => setSwapForm(prev => ({ ...prev, message: e.target.value }))}
+                  value={requestForm.message}
+                  onChange={(e) => setRequestForm(prev => ({ ...prev, message: e.target.value }))}
                   rows="3"
                   placeholder="Add a personal message to your swap request..."
                 />
@@ -192,11 +232,11 @@ const UserDetail = () => {
 
               <div className="flex" style={{ gap: '10px' }}>
                 <button type="submit" className="btn btn-primary">
-                  Send Swap Request
+                  Send Request
                 </button>
                 <button 
                   type="button" 
-                  onClick={() => setShowSwapForm(false)} 
+                  onClick={() => setShowRequestForm(false)} 
                   className="btn btn-secondary"
                 >
                   Cancel
