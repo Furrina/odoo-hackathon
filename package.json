@@ -23,6 +23,8 @@
     "concurrently": "^7.6.0"
   },
   "dependencies": {
+    "dotenv": "^17.2.0",
+    "mongodb": "^6.17.0",
     "rxjs": "^7.8.2"
   }
 }

@@ -73,6 +73,15 @@ const MySwaps = () => {
     setRatingForm({ swapId: '', rating: 5, comment: '', forRole: '' });
   };
 
+  const handleMarkCompleted = async (swapId) => {
+    try {
+      await axios.put(`/api/swaps/${swapId}/complete`);
+      fetchSwaps();
+    } catch (error) {
+      setError('Failed to mark swap as completed');
+    }
+  };
+
   // Helper function to display user rating
   const displayUserRating = (user) => {
     if ((user.totalRatings || 0) === 0) {
@@ -315,6 +324,15 @@ const MySwaps = () => {
                           )}
                           <p><strong>Date:</strong> {new Date(swap.createdAt).toLocaleDateString()}</p>
                         </div>
+                        {swap.status === 'accepted' && (swap.requester._id === user._id || swap.recipient._id === user._id) && (
+                          <button
+                            className="btn btn-success btn-sm"
+                            onClick={() => handleMarkCompleted(swap._id)}
+                            style={{ marginTop: '8px' }}
+                          >
+                            Mark as Completed
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>

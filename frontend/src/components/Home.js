@@ -8,22 +8,29 @@ const Home = () => {
   const [publicUsers, setPublicUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const usersPerPage = 4;
 
   useEffect(() => {
     fetchPublicUsers();
-  }, [user]);
+  }, [user, currentPage]);
 
   const fetchPublicUsers = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/users/browse');
+      const response = await axios.get(`/api/users/browse?page=${currentPage}&limit=${usersPerPage}`);
       // Support both {users, total} and array response
       const users = Array.isArray(response.data) ? response.data : response.data.users;
+      const total = response.data.total || users.length;
+      
       let filteredUsers = users;
       if (user) {
         filteredUsers = users.filter(u => u._id !== user._id);
       }
+      
       setPublicUsers(filteredUsers);
+      setTotalPages(Math.ceil(total / usersPerPage));
     } catch (error) {
       setError('Failed to load users');
       console.error('Error fetching users:', error);
@@ -32,13 +39,107 @@ const Home = () => {
     }
   };
 
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
+
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+
+    const pages = [];
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    // Previous button
+    if (currentPage > 1) {
+      pages.push(
+        <button
+          key="prev"
+          onClick={() => handlePageChange(currentPage - 1)}
+          className="pagination-btn"
+        >
+          ← Previous
+        </button>
+      );
+    }
+
+    // First page
+    if (startPage > 1) {
+      pages.push(
+        <button
+          key="1"
+          onClick={() => handlePageChange(1)}
+          className="pagination-btn"
+        >
+          1
+        </button>
+      );
+      if (startPage > 2) {
+        pages.push(<span key="ellipsis1" className="pagination-ellipsis">...</span>);
+      }
+    }
+
+    // Page numbers
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(
+        <button
+          key={i}
+          onClick={() => handlePageChange(i)}
+          className={`pagination-btn ${currentPage === i ? 'active' : ''}`}
+        >
+          {i}
+        </button>
+      );
+    }
+
+    // Last page
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) {
+        pages.push(<span key="ellipsis2" className="pagination-ellipsis">...</span>);
+      }
+      pages.push(
+        <button
+          key={totalPages}
+          onClick={() => handlePageChange(totalPages)}
+          className="pagination-btn"
+        >
+          {totalPages}
+        </button>
+      );
+    }
+
+    // Next button
+    if (currentPage < totalPages) {
+      pages.push(
+        <button
+          key="next"
+          onClick={() => handlePageChange(currentPage + 1)}
+          className="pagination-btn"
+        >
+          Next →
+        </button>
+      );
+    }
+
+    return (
+      <div className="pagination">
+        {pages}
+      </div>
+    );
+  };
+
   if (!user) {
     return (
       <div>
         <div className="hero">
           <h1>Welcome to Skill Swap</h1>
-          <p>Exchange your skills with others and learn something new in return</p>
-          <div>
+          <p className="hero-subtitle">The innovative platform where knowledge meets opportunity. Exchange your skills with others and learn something new in return.</p>
+          <div className="hero-actions">
             <Link to="/register" className="btn btn-primary" style={{ marginRight: '10px' }}>
               Get Started
             </Link>
@@ -48,20 +149,81 @@ const Home = () => {
           </div>
         </div>
 
+        <div className="app-info-section">
+          <h2>About Skill Swap</h2>
+          <p className="app-description">
+            Skill Swap is a community-driven platform that connects people who want to learn new skills with those who can teach them. 
+            Instead of traditional payment, users exchange their expertise - you teach someone your skill, and they teach you theirs in return.
+          </p>
+        </div>
+
         <div className="features">
           <div className="feature-card">
-            <h3>Share Your Skills</h3>
-            <p>List the skills you can teach others. Whether it's programming, cooking, or playing guitar, your knowledge is valuable.</p>
+            <h3>🎯 Share Your Expertise</h3>
+            <p>List the skills you can teach others. Whether it's programming, cooking, playing guitar, or any other skill, your knowledge is valuable to someone who wants to learn.</p>
           </div>
           
           <div className="feature-card">
-            <h3>Learn New Skills</h3>
-            <p>Find people who can teach you the skills you want to learn. Connect with experts in your area of interest.</p>
+            <h3>📚 Learn New Skills</h3>
+            <p>Find people who can teach you the skills you want to learn. Connect with experts in your area of interest and start your learning journey.</p>
           </div>
           
           <div className="feature-card">
-            <h3>Safe Exchange</h3>
-            <p>Our platform ensures safe skill exchanges with user ratings, verification, and secure communication.</p>
+            <h3>🤝 Safe Exchange</h3>
+            <p>Our platform ensures safe skill exchanges with user ratings, verification, and secure communication. Build trust through our community-driven rating system.</p>
+          </div>
+
+          <div className="feature-card">
+            <h3>🌍 Build Community</h3>
+            <p>Join a community of learners and teachers. Connect with like-minded individuals, share experiences, and grow together through skill exchange.</p>
+          </div>
+        </div>
+
+        <div className="how-it-works">
+          <h2>How It Works</h2>
+          <div className="steps">
+            <div className="step">
+              <div className="step-number">1</div>
+              <h4>Create Your Profile</h4>
+              <p>Sign up and create your profile. List the skills you can teach and the skills you want to learn.</p>
+            </div>
+            <div className="step">
+              <div className="step-number">2</div>
+              <h4>Browse Users</h4>
+              <p>Explore other users' profiles to find people with matching skill interests.</p>
+            </div>
+            <div className="step">
+              <div className="step-number">3</div>
+              <h4>Request a Swap</h4>
+              <p>Send a swap request when you find someone with complementary skills.</p>
+            </div>
+            <div className="step">
+              <div className="step-number">4</div>
+              <h4>Exchange Skills</h4>
+              <p>Meet up (virtually or in person) and exchange your skills. Rate each other after completion.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="benefits-section">
+          <h2>Why Choose Skill Swap?</h2>
+          <div className="benefits">
+            <div className="benefit-item">
+              <h4>💰 Cost-Effective Learning</h4>
+              <p>Learn new skills without spending money on expensive courses or classes.</p>
+            </div>
+            <div className="benefit-item">
+              <h4>🎓 Practical Experience</h4>
+              <p>Learn from real people with practical experience in their fields.</p>
+            </div>
+            <div className="benefit-item">
+              <h4>🤝 Mutual Growth</h4>
+              <p>Both parties benefit from the exchange, creating a win-win learning environment.</p>
+            </div>
+            <div className="benefit-item">
+              <h4>🌟 Community Building</h4>
+              <p>Connect with people who share your interests and build lasting relationships.</p>
+            </div>
           </div>
         </div>
 
@@ -193,6 +355,9 @@ const Home = () => {
                   </div>
                 ))}
               </div>
+              
+              {/* Pagination */}
+              {renderPagination()}
             </div>
           )}
         </>

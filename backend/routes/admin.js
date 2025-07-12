@@ -7,6 +7,26 @@ const { body, validationResult } = require('express-validator');
 
 const router = express.Router();
 
+// Make user admin (for testing purposes)
+router.put('/make-admin/:email', async (req, res) => {
+    try {
+        const user = await User.findOneAndUpdate(
+            { email: req.params.email },
+            { role: 'admin' },
+            { new: true }
+        ).select('-password');
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        res.json({ message: 'User made admin successfully', user });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 // Get all users (admin only)
 router.get('/users', adminAuth, async (req, res) => {
     try {
