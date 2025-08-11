@@ -20,6 +20,8 @@ You can access the hosted website here:
 | Aryan Dawra | aryandawra2020@gmail.com |
 | Het Patel | phet30440@gmail.com |
 | Hardatt Mangrola | hardattmangrola55@gmail.com|
+
+## Description
 A MERN stack application that enables users to list their skills and request others in return. Users can browse profiles, propose skill swaps, accept/reject requests, and rate completed exchanges.
 
 ## Features
